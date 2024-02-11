@@ -1,6 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory
 import os
-from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 UPLOAD_FOLDER = './'
@@ -24,17 +23,6 @@ def index():
         pass
     return render_template('index.html', images=images, get_caption_for_image=get_caption_for_image, current_dir=current_dir)
 
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    if 'file' not in request.files:
-        return redirect(request.url)
-    file = request.files['file']
-    if file.filename == '':
-        return redirect(request.url)
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-    return redirect(url_for('index'))
 
 def sanitize_filename(filename):
     # Replace or remove potentially unsafe characters
@@ -54,14 +42,16 @@ def sanitize_filename(filename):
 def save_caption():
     caption = request.form['caption']
     original_filename = request.form['filename']
+    current_dir = app.config['UPLOAD_FOLDER']
 
     # Sanitize the filename to keep spaces and brackets but remove other potentially unsafe characters
     filename = sanitize_filename(original_filename)
 
-    caption_path = os.path.join(UPLOAD_FOLDER, os.path.splitext(filename)[0] + '.txt')
+    caption_path = os.path.join(current_dir, os.path.splitext(filename)[0] + '.txt')
     with open(caption_path, 'w') as f:
         f.write(caption)
-    return redirect(url_for('index'))
+
+    return '', 204
 
 
 @app.route('/uploads/<filename>')
