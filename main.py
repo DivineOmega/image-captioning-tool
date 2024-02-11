@@ -1,126 +1,82 @@
-import tkinter as tk
-from tkinter import ttk, filedialog
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory
 import os
-from PIL import Image, ImageTk
+from werkzeug.utils import secure_filename
 
-class ImageCaptionApp:
-    def __init__(self, root):
-        self.captions = []
-        self.images = []
-        self.root = root
-        self.root.title("Image Captioning App")
-        self.root.withdraw()
+app = Flask(__name__)
+UPLOAD_FOLDER = '/home/jordan/Desktop/bluey/'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
-        # Set initial number of columns
-        self.num_columns = 3
-        self.image_widgets = []
-        self.entry_widgets = []
-        self.images_loaded = False
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-        # Prompt the user to select a directory
-        self.directory = filedialog.askdirectory(title="Select Image Directory")
-        if not self.directory:
-            self.root.destroy()
-            return
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-        self.root.deiconify()
-        self.root.title(f"Image Captioning App - {self.directory}")
+@app.route('/')
+def index():
+    images = []
+    for filename in os.listdir(UPLOAD_FOLDER):
+        if allowed_file(filename):
+            images.append(filename)
+    return render_template('index.html', images=images, get_caption_for_image=get_caption_for_image)
 
-        self.root.geometry("800x600")
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return redirect(request.url)
+    file = request.files['file']
+    if file.filename == '':
+        return redirect(request.url)
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+    return redirect(url_for('index'))
 
-        # Create the main layout frame with a canvas and scrollbar
-        self.main_frame = ttk.Frame(root)
-        self.main_frame.grid(sticky='nsew')
-        self.main_frame.columnconfigure(0, weight=1)
-        self.main_frame.rowconfigure(0, weight=1)
+def sanitize_filename(filename):
+    # Replace or remove potentially unsafe characters
+    # This is a basic example; you might need to expand this list based on your requirements
+    unsafe_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|']
+    for char in unsafe_chars:
+        filename = filename.replace(char, '')
 
-        self.canvas = tk.Canvas(self.main_frame)
-        self.canvas.grid(row=0, column=0, sticky='nsew')
+    # Remove any path traversal attempts
+    filename = filename.replace('..', '')
 
-        self.scrollbar = tk.Scrollbar(self.main_frame, orient='vertical', command=self.canvas.yview)
-        self.scrollbar.grid(row=0, column=1, sticky='nsew')
+    # You might want to add more sanitization rules here depending on your needs
 
-        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+    return filename
 
-        # Create a frame within the canvas which will be scrolled with the scrollbar
-        self.scrollable_frame = ttk.Frame(self.canvas)
-        self.scrollable_frame.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+@app.route('/save_caption', methods=['POST'])
+def save_caption():
+    caption = request.form['caption']
+    original_filename = request.form['filename']
 
-        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor='nw')
-        self.scrollable_frame.columnconfigure(1, weight=1)
+    # Sanitize the filename to keep spaces and brackets but remove other potentially unsafe characters
+    filename = sanitize_filename(original_filename)
 
-        # Bind the canvas to the frame resize event
-        self.root.bind('<Configure>', self.on_root_configure)
+    caption_path = os.path.join(UPLOAD_FOLDER, os.path.splitext(filename)[0] + '.txt')
+    with open(caption_path, 'w') as f:
+        f.write(caption)
+    return redirect(url_for('index'))
 
-        # Load images and captions
-        self.load_images_and_captions()
 
-        # Display the images and captions
-        self.display_images_and_captions()
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-    def load_images_and_captions(self):
-        # Load all image files and corresponding caption files
-        for file in os.listdir(self.directory):
-            if file.endswith(".jpg") or file.endswith(".png"):
-                image_path = os.path.join(self.directory, file)
-                caption_path = os.path.splitext(image_path)[0] + ".txt"
-                self.images.append(image_path)
-                self.captions.append(caption_path)
 
-    def on_root_configure(self, event):
-        # Resize the canvas' window to the new width
-        canvas_width = self.root.winfo_width()
-        self.canvas.itemconfig('scrollable_frame', width=canvas_width)
-        self.adjust_grid_columns(canvas_width)
+def get_caption_for_image(image_filename):
+    # Change the image file extension to .txt to find the corresponding caption file
+    base, _ = os.path.splitext(image_filename)
+    caption_filename = base + '.txt'
+    caption_path = os.path.join(app.config['UPLOAD_FOLDER'], caption_filename)
 
-    def adjust_grid_columns(self, width):
-        # Calculate the number of columns based on the width
-        new_num_columns = max(1, width // 256)  # assuming each image thumbnail is 256px wide
-        if new_num_columns != self.num_columns:
-            self.num_columns = new_num_columns
-            if self.images_loaded:  # Only adjust if images have been loaded
-                self.display_images_and_captions()
+    # Try to read the caption from the file
+    try:
+        with open(caption_path, 'r') as f:
+            return f.read()
+    except IOError:
+        # If the caption file doesn't exist or can't be read, return an empty string
+        return ""
 
-    def display_images_and_captions(self):
-        self.images_loaded = True
-        for widgets in self.image_widgets + self.entry_widgets:
-            widgets.destroy()
-        self.image_widgets.clear()
-        self.entry_widgets.clear()
-
-        self.scrollable_frame.columnconfigure(tuple(range(self.num_columns)), weight=1)
-
-        for idx, (image_path, caption_path) in enumerate(zip(self.images, self.captions)):
-            row = idx // self.num_columns
-            column = idx % self.num_columns
-
-            img = Image.open(image_path)
-            img.thumbnail((256, 256))
-            img = ImageTk.PhotoImage(img)
-
-            label = ttk.Label(self.scrollable_frame, image=img)
-            label.image = img
-            label.grid(row=row * 2, column=column, padx=5, pady=5, sticky='nsew')
-            self.image_widgets.append(label)
-
-            text_var = tk.StringVar()
-            if os.path.exists(caption_path):
-                with open(caption_path, "r") as f:
-                    text_var.set(f.read())
-            text_entry = ttk.Entry(self.scrollable_frame, textvariable=text_var)
-            text_entry.grid(row=row * 2 + 1, column=column, padx=5, pady=5, sticky='ew')
-            self.entry_widgets.append(text_entry)
-
-            # Save caption on change
-            text_var.trace("w", lambda name, index, mode, sv=text_var, cp=caption_path: self.save_caption(sv, cp))
-
-    def save_caption(self, string_var, caption_path):
-        with open(caption_path, "w") as f:
-            f.write(string_var.get())
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = ImageCaptionApp(root)
-    root.mainloop()
+if __name__ == '__main__':
+    app.run(debug=True)

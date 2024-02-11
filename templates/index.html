@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Captioning App</title>
+    <style>
+        #image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        .image-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .image-item img {
+            width: 100%;
+            height: auto;
+        }
+        .image-item textarea {
+            width: 100%;
+            height: 50px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="image-grid">
+        {% for image in images %}
+            <div class="image-item">
+                <img src="{{ url_for('uploaded_file', filename=image) }}" alt="Image">
+                <form action="{{ url_for('save_caption') }}" method="post">
+                    <input type="hidden" name="filename" value="{{ image }}">
+                    <textarea name="caption">{{ get_caption_for_image(image) }}</textarea>
+                    <button type="submit">Save</button>
+                </form>
+            </div>
+        {% endfor %}
+    </div>
+</body>
+</html>
