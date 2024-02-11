@@ -25,16 +25,45 @@
             margin-top: 10px;
         }
     </style>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const debounce = (func, delay) => {
+                let debounceTimer;
+                return function() {
+                    const context = this;
+                    const args = arguments;
+                    clearTimeout(debounceTimer);
+                    debounceTimer = setTimeout(() => func.apply(context, args), delay);
+                }
+            };
+
+            const autoSave = debounce(function(textarea) {
+                const formData = new FormData();
+                formData.append('caption', textarea.value);
+                formData.append('filename', textarea.dataset.filename);
+
+                fetch("{{ url_for('save_caption') }}", {
+                    method: 'POST',
+                    body: formData,
+                })
+                .then(response => console.log('Auto-saved'))
+                .catch(error => console.error('Error:', error));
+            }, 250);
+
+            document.querySelectorAll('.image-item textarea').forEach(textarea => {
+                textarea.addEventListener('input', () => autoSave(textarea));
+            });
+        });
+    </script>
 </head>
 <body>
     <div id="image-grid">
         {% for image in images %}
             <div class="image-item">
                 <img src="{{ url_for('uploaded_file', filename=image) }}" alt="Image">
-                <form action="{{ url_for('save_caption') }}" method="post">
+                <form action="javascript:void(0);" method="post">
                     <input type="hidden" name="filename" value="{{ image }}">
-                    <textarea name="caption">{{ get_caption_for_image(image) }}</textarea>
-                    <button type="submit">Save</button>
+                    <textarea name="caption" data-filename="{{ image }}">{{ get_caption_for_image(image) }}</textarea>
                 </form>
             </div>
         {% endfor %}
