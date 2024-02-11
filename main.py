@@ -3,7 +3,7 @@ import os
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-UPLOAD_FOLDER = '/home/jordan/Desktop/bluey/'
+UPLOAD_FOLDER = './'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -14,10 +14,15 @@ def allowed_file(filename):
 @app.route('/')
 def index():
     images = []
-    for filename in os.listdir(UPLOAD_FOLDER):
-        if allowed_file(filename):
-            images.append(filename)
-    return render_template('index.html', images=images, get_caption_for_image=get_caption_for_image)
+    current_dir = app.config['UPLOAD_FOLDER']
+    if os.path.isdir(current_dir):
+        for filename in os.listdir(current_dir):
+            if allowed_file(filename):
+                images.append(filename)
+    else:
+        # Handle case where current directory is not valid
+        pass
+    return render_template('index.html', images=images, get_caption_for_image=get_caption_for_image, current_dir=current_dir)
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -77,6 +82,17 @@ def get_caption_for_image(image_filename):
     except IOError:
         # If the caption file doesn't exist or can't be read, return an empty string
         return ""
+
+@app.route('/change_directory', methods=['POST'])
+def change_directory():
+    new_directory = request.form.get('new_directory')
+    if os.path.isdir(new_directory):
+        app.config['UPLOAD_FOLDER'] = new_directory
+    else:
+        # Handle the case where the new directory is invalid (e.g., flash a message)
+        pass
+    return redirect(url_for('index'))
+
 
 if __name__ == '__main__':
     app.run(debug=True)

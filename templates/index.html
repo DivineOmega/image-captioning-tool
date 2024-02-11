@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Image Captioning App</title>
     <style>
+        #change-directory-form {
+            margin-bottom: 20px;
+        }
         #image-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -57,6 +60,10 @@
     </script>
 </head>
 <body>
+    <form action="{{ url_for('change_directory') }}" method="post" id="change-directory-form">
+        <input type="text" name="new_directory" placeholder="Enter new directory path" required value="{{ current_dir }}" />
+        <button type="submit">Change Directory</button>
+    </form>
     <div id="image-grid">
         {% for image in images %}
             <div class="image-item">
